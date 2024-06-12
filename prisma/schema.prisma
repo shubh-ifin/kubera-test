@@ -1,0 +1,194 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider          = "cockroachdb"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+model CRM {
+  ifinId          Int             @id @default(sequence())
+  clientName      String
+  brokerId        String
+  phoneNo         String          @db.Char(10)
+  email           String
+  address         String
+  accountOpenDate DateTime        @db.Date
+  accountType     AccountType[]   @default([])
+  accountStatus   AccountStatus
+  user            User            @relation(fields: [email], references: [email])
+  clientMargin    ClientMargin[]
+  credentials     Credentials[]
+  holdingsPnl     HoldingsPnl[]
+  ledger          Ledger[]
+  pnlAdjustment   PnlAdjustment[]
+  realisedPnl     RealisedPnl[]
+
+  @@unique([brokerId, phoneNo, email])
+  @@index([clientName])
+}
+
+model Credentials {
+  credentialsId Int         @id @default(sequence(maxValue: 2147483647))
+  ifinId        Int
+  applicationId Int
+  userName      String
+  userPassword  String
+  pin           String?
+  application   Application @relation(fields: [applicationId], references: [applicationId])
+  crm           CRM         @relation(fields: [ifinId], references: [ifinId])
+}
+
+model Application {
+  applicationId Int           @id @default(sequence(maxValue: 2147483647))
+  name          String
+  credentials   Credentials[]
+}
+
+model Ledger {
+  ledgerId          Int             @id @default(sequence(maxValue: 2147483647))
+  ifinId            Int
+  ledgerEntryTypeId Int
+  amount            Decimal         @db.Decimal(14, 2)
+  fromDate          DateTime        @db.Date
+  toDate            DateTime        @db.Date
+  crm               CRM             @relation(fields: [ifinId], references: [ifinId])
+  ledgerEntryType   LedgerEntryType @relation(fields: [ledgerEntryTypeId], references: [ledgerEntryTypeId])
+}
+
+model LedgerEntryType {
+  ledgerEntryTypeId Int      @id @default(sequence(maxValue: 2147483647))
+  comment           String
+  ledger            Ledger[]
+}
+
+model ClientMargin {
+  marginId Int     @id @default(sequence(maxValue: 2147483647))
+  ifinId   Int
+  margin   Decimal @db.Decimal(14, 2)
+  crm      CRM     @relation(fields: [ifinId], references: [ifinId])
+}
+
+model RealisedPnl {
+  realisedPnlId Int           @id @default(sequence(maxValue: 2147483647))
+  ifinId        Int
+  pnl           Decimal       @db.Decimal(14, 2)
+  entryType     EntryType
+  fromDate      DateTime      @db.Date
+  toDate        DateTime      @db.Date
+  crm           CRM           @relation(fields: [ifinId], references: [ifinId])
+}
+
+model PnlAdjustment {
+  pnlAdjustmentId Int      @id @default(sequence(maxValue: 2147483647))
+  ifinId          Int
+  adjustment      Decimal  @db.Decimal(14, 2)
+  comment         String
+  fromDate        DateTime @db.Date
+  toDate          DateTime @db.Date
+  crm             CRM      @relation(fields: [ifinId], references: [ifinId])
+}
+
+model HoldingsPnl {
+  holdingsPnlId  Int          @id @default(sequence(maxValue: 2147483647))
+  ifinId         Int
+  holdingsNameId Int
+  trxType        TrxType
+  trxPrice       Decimal      @db.Decimal(14, 2)
+  quantity       Decimal      @db.Decimal(14, 2)
+  trxDate        DateTime     @db.Date
+  ownedBy        OwnedBy
+  fromDate       DateTime     @db.Date
+  toDate         DateTime     @db.Date
+  holdingsName   HoldingsName @relation(fields: [holdingsNameId], references: [holdingsNameId])
+  crm            CRM          @relation(fields: [ifinId], references: [ifinId])
+}
+
+model HoldingsName {
+  holdingsNameId Int           @id @default(sequence(maxValue: 2147483647))
+  name           String
+  sector         String
+  ticker         String
+  holdingsPnl    HoldingsPnl[]
+
+  @@index([name])
+}
+
+model Account {
+  id                       String  @id @default(cuid())
+  userId                   String
+  type                     String
+  provider                 String
+  providerAccountId        String
+  refresh_token            String?
+  access_token             String?
+  expires_at               Int?
+  token_type               String?
+  scope                    String?
+  id_token                 String?
+  session_state            String?
+  refresh_token_expires_in Int?
+  user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  crm           CRM[]
+  sessions      Session[]
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+enum AccountStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum AccountType {
+  FNO
+  CASH
+  MF
+}
+
+enum EntryType {
+  FNO_INTRADAY
+  FNO_EQUITY
+  EQUITY
+  MCX
+  DIVIDEND
+  MF
+  FNO_EQUITY_ADJUSTMENT
+}
+
+enum TrxType {
+  BUY
+  SELL
+}
+
+enum OwnedBy {
+  IFIN
+  CUSTOMER
+}
